@@ -21,6 +21,7 @@ import sys, os, re
 import math
 import sqlite3
 import time
+import io
 
 # the database is a simple dictionnary
 database = {}
@@ -113,8 +114,9 @@ def process(filename):
         "Error in file %s" % filename
         return False
     else:
-        for l in file.readlines():
-            parsetoken(l)
+        with io.open(file.name, 'r', encoding='windows-1252') as unicode_file:
+            for l in unicode_file.readlines():
+                parsetoken(l)
     file.close()
 
 #
@@ -169,7 +171,7 @@ if __name__ == "__main__":
     #
     con = sqlite3.connect("cacm.db")
     con.isolation_level = None
-    cur = con.cursor()
+    cursor = con.cursor()
 
     #
     # In the following section three tables and their associated indexes will be created.
@@ -178,30 +180,30 @@ if __name__ == "__main__":
     #
 
     # Document Dictionary Table
-    cur.execute("drop table if exists DocumentDictionary")
-    cur.execute("drop index if exists idxDocumentDictionary")
-    cur.execute("create table if not exists DocumentDictionary (DocumentName text, DocId int)")
-    cur.execute("create index if not exists idxDocumentDictionary on DocumentDictionary (DocId)")
+    cursor.execute("drop table if exists DocumentDictionary")
+    cursor.execute("drop index if exists idxDocumentDictionary")
+    cursor.execute("create table if not exists DocumentDictionary (DocumentName text, DocId int)")
+    cursor.execute("create index if not exists idxDocumentDictionary on DocumentDictionary (DocId)")
 
     # Term Dictionary Table
-    cur.execute("drop table if exists TermDictionary")
-    cur.execute("drop index if exists idxTermDictionary")
-    cur.execute("create table if not exists TermDictionary (Term text, TermId int)")
-    cur.execute("create index if not exists idxTermDictionary on TermDictionary (TermId)")
+    cursor.execute("drop table if exists TermDictionary")
+    cursor.execute("drop index if exists idxTermDictionary")
+    cursor.execute("create table if not exists TermDictionary (Term text, TermId int)")
+    cursor.execute("create index if not exists idxTermDictionary on TermDictionary (TermId)")
 
     # Postings Table
-    cur.execute("drop table if exists Posting")
-    cur.execute("drop index if exists idxPosting1")
-    cur.execute("drop index if exists idxPosting2")
-    cur.execute("create table if not exists Posting (TermId int, DocId int, tfidf real, docfreq int, termfreq int)")
-    cur.execute("create index if not exists idxPosting1 on Posting (TermId)")
-    cur.execute("create index if not exists idxPosting2 on Posting (Docid)")
+    cursor.execute("drop table if exists Posting")
+    cursor.execute("drop index if exists idxPosting1")
+    cursor.execute("drop index if exists idxPosting2")
+    cursor.execute("create table if not exists Posting (TermId int, DocId int, tfidf real, docfreq int, termfreq int)")
+    cursor.execute("create index if not exists idxPosting1 on Posting (TermId)")
+    cursor.execute("create index if not exists idxPosting2 on Posting (Docid)")
 
     #
     # The walkdir method essentially executes the indexer. The walkdir method will
     # read the corpus directory, Scan all files, parse tokens, and create the inverted index.
     #
-    walkdir(cur, folder)
+    walkdir(cursor, folder)
 
     t2 = time.localtime()
     print('Indexing Complete, write to disk: %.2d:%.2d' % (t2.tm_hour, t2.tm_min))
