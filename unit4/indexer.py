@@ -11,29 +11,38 @@ In this part 2 indexer assignment, there is important new functionality required
 First you must define a list of between 50 and 100 stop words and develop the functionality within your program to ignore any term that matches a stop
 word. If you recall, stop words are common words that have little discriminating value in the index and so we do not include them to improve the processing efficiency of our inverted index for searches
 
-Second your indexer must perform more editing on the terms including the following: Ignore any term that begins with a punctionary character
+Second your indexer must perform more editing on the terms including the following: 
+Ignore any term that begins with a punctionary character
 Ignore any term that is a number
 Ignore any term that is 2 characters or shorter in length
 
 Third your indexer must compute and store the tf-idf 'vector' calculated for each term stored in the dictionary
-Finally your indexer must implement the data model outlined as part of the assignment """
+Finally your indexer must implement the data model outlined as part of the assignment 
+"""
+
 import sys, os, re
 import math
 import sqlite3
 import time
 import io
+from porterstemmer import PorterStemmer
 
+enStopwords = {'and', 'ours', 'as', 'am', "mightn't", 'about', 'why', 'most', "you've", 'doing', 'under', 'didn', 'weren', "she's", 'yourselves', "mustn't", 'just', 'won', 'such', 'hadn', 'are', "you'd", 'mustn', "weren't", 'our', 'if', "don't", 'm', 'so', 'here', 'then', 'shan', 'during', 'it', 'were', 'the', 'with', "wasn't", 'yourself', 'off', 'been', 'or', 'for', 'own', 'too', 'nor', 'be', 'y', 'my', "you'll", 'from', 't', 'will', 'll', 'above', 'i', 'o', 'other', 'in', 'how', 'than', 'they', 'has', 'further', 'she', 'having', 'each', 'is', 'me', 'was', 'you', 're', 'until', 'on', 'we', 'by', 'between', 's', 'which', "haven't", 'at', 'ourselves', 'no', 'theirs', "shan't", 'out', 'his', 'this', 'of', 'ma', 'her', "didn't", 'their', 'can', "should've", 'couldn', 'myself', 'more', "that'll", 'there', 'them', 'your', 'ain', "needn't", 'against', 'a', 'wouldn', 'through', 'now', 'him', "isn't", 'whom', 'being', 'did', 'once', "hasn't", 'don', 'herself', 'only', 've', 'all', 'into', 'not', 'while', 'to', 'isn', 'when', "shouldn't", 'very', 'shouldn', 'because', 'needn', 'mightn', 'those', "wouldn't", 'both', 'an', 'below', 'again', "aren't", 'doesn', 'have', 'but', 'do', "won't", 'its', 'themselves', 'that', 'these', 'haven', 'before', 'does', 'hers', 'where', "couldn't", "hadn't", 'he', 'd', 'over', 'up', "doesn't", 'who', 'hasn', 'down', 'any', 'aren', "it's", "you're", 'same', 'himself', 'what', 'few', 'wasn', 'after', 'had', 'should', 'yours', 'some', 'itself'}
 # the database is a simple dictionnary
 database = {}
 
 # regular expression for: extract words, extract ID from path, check for hexa value
 chars = re.compile(r'\W+')
+atLeast3Chars = re.compile(r'\w{3,}')
+notDigit = re.compile(r'\D*')
 pattid = re.compile(r'(\d{3})/(\d{3})/(\d{3})')
 
 # the higher ID
 tokens = 0
 documents = 0
 terms = 0
+stopWordsFound = 0
+stemmer = PorterStemmer()
 
 #
 # We will create a term object for each unique instance of a term
@@ -44,6 +53,14 @@ class Term():
     docs = 0
     docids = {}
 
+    # The code added:
+    # ===================================================================
+    # Calculate the inverse document frequency
+    # ===================================================================
+    def idf(self, N):
+        # dft - the number of documents that contain t
+        return math.log10(N / self.docs)
+
 # split on any chars
 def splitchars(line):
     return chars.split(line)
@@ -53,6 +70,8 @@ def parsetoken(line):
     global documents
     global tokens
     global terms
+    global stopWordsFound
+    global stemmer
 
     # this replaces any tab characters with a space character in the line
     # read from the file
@@ -70,32 +89,54 @@ def parsetoken(line):
 
         # This statement converts all letters to lower case
         lowerElmt = elmt.lower().strip()
+        
 
-        #
-        # Increment the counter of the number of tokens processed. This value will
-        # provide the total size of the corpus in terms of the number of terms in the
-        # entire collection
-        #
-        tokens += 1
+        isAlphaNumeric = chars.match(lowerElmt) is None
+        isAtLeast3chars = atLeast3Chars.match(lowerElmt) is not None
+        isAstopWord = elmt in enStopwords
+        if isAstopWord:
+            stopWordsFound += 1
 
-        # if the term doesn't currently exist in the term dictionary
-        # then add the term
-        if not (lowerElmt in database.keys()):
-            terms += 1
-            database[lowerElmt] = Term()
-            database[lowerElmt].termid = terms
-            database[lowerElmt].docids = dict()
-            database[lowerElmt].docs = 0
+        # The code added:
+        # ===================================================================
+        # The following condition implements requirement from the assignment:
+        # Ignore any term that begins with a punctionary character
+        # Ignore any term that is a number
+        # Ignore any term that is 2 characters or shorter in length
+        # Ignore stopword
+        # ===================================================================
+        if isAtLeast3chars and isAlphaNumeric and not lowerElmt.isdigit() and not isAstopWord:
+            # The code added:
+            # ===================================================================
+            # Implement a porter stemmer to stem the tokens processed by your indexer routine. 
+            # ===================================================================
+            lowerElmt = stemmer.stem(lowerElmt, 0, len(lowerElmt) - 1)
 
-        # if the document is not currently in the postings
-        # list for the term then add it
-        #
-        if not (documents in database[lowerElmt].docids.keys()):
-            database[lowerElmt].docs += 1
-            database[lowerElmt].docids[documents] = 0
+            #
+            # Increment the counter of the number of tokens processed. This value will
+            # provide the total size of the corpus in terms of the number of terms in the
+            # entire collection
+            #
+            tokens += 1
 
-        # Increment the counter that tracks the term frequency
-        database[lowerElmt].docids[documents] += 1
+            # if the term doesn't currently exist in the term dictionary
+            # then add the term
+            if not (lowerElmt in database.keys()):
+                terms += 1
+                database[lowerElmt] = Term()
+                database[lowerElmt].termid = terms
+                database[lowerElmt].docids = dict()
+                database[lowerElmt].docs = 0
+
+            # if the document is not currently in the postings
+            # list for the term then add it
+            #
+            if not (documents in database[lowerElmt].docids.keys()):
+                database[lowerElmt].docs += 1
+                database[lowerElmt].docids[documents] = 0
+
+            # Increment the counter that tracks the term frequency
+            database[lowerElmt].docids[documents] += 1
 
     return l
 
@@ -217,6 +258,11 @@ if __name__ == "__main__":
     # Insert a row into the posting table for each unique combination of Docid and termid
     #
     #
+    for token, term in database.items():
+        termid = term.termid
+        cursor.execute("insert into TermDictionary values (?, ?)", (token, termid))
+        for documentId, docFrequency in term.docids.items():
+            cursor.execute("insert into Posting values (?, ?, ?, ?, ?)", (termid, documentId, term.idf(documents), docFrequency, term.termfreq))
 
     #
     # Commit changes to the database and close the connection
@@ -230,5 +276,6 @@ if __name__ == "__main__":
     print("Documents %i" % documents)
     print("Terms %i" % terms)
     print("Tokens %i" % tokens)
+    print("Stop Words Found %i" % stopWordsFound)
     t2 = time.localtime()
     print('End Time: %.2d:%.2d' % (t2.tm_hour, t2.tm_min))
