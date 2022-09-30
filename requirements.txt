@@ -1,4 +1,4 @@
 click==7.1.2
-joblib==0.14.1
+joblib==1.2.0
 regex==2020.4.4
 tqdm==4.46.0
